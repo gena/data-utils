@@ -12,14 +12,19 @@ import fiona
 from shapely.geometry import shape
 import datetime
 
-def search_tiles(extent, max_cloud, start_date = None, end_date = None):
+def search_tiles(extent, max_cloud, start_date = None, end_date = None, all_sensors = False):
     if not start_date:
         start_date = '1980-01-01'
     if not end_date:
         t = datetime.datetime.now()
         end_date = '{:04d}-{:02d}-{:02d}'.format(t.year, t.month, t.day)
     print start_date + '...' + end_date
-    u = 'http://landsatlook.usgs.gov/arcgis/rest/services/LandsatLook/ImageServer/query?where=(acquisitionDate%20>%3D%20date%27{5}%27%20AND%20%20acquisitionDate%20<%3D%20date%27{6}%27)%20AND%20(sensor+%3D+%27TM%27+OR+sensor+%3D+%27ETM%27+OR+sensor+%3D+%27LANDSAT_ETM%27+OR+sensor+%3D+%27OLI%27)+AND+%28cloudCover+<%3D+{4}%29&objectIds=&time=&geometry=%7B%22xmin%22%3A{0}%2C%22ymin%22%3A{1}%2C%22xmax%22%3A{2}%2C%22ymax%22%3A{3}%2C%22spatialReference%22%3A%7B%22wkid%22%3A102100%7D%7D&geometryType=esriGeometryEnvelope&inSR=102100&spatialRel=esriSpatialRelIntersects&relationParam=&outFields=sceneID%2Csensor%2CacquisitionDate%2CdateUpdated%2Cpath%2Crow%2CPR%2CcloudCover%2CsunElevation%2CsunAzimuth%2CreceivingStation%2CsceneStartTime%2Cmonth%2Cyear%2COBJECTID%2CdayOfYear%2CdayOrNight%2CbrowseURL&returnGeometry=true&outSR=102100&returnIdsOnly=false&returnCountOnly=false&pixelSize=&orderByFields=year%2CdayOfYear&groupByFieldsForStatistics=&outStatistics=&f=json'
+
+    if all_sensors:    
+        u = 'http://landsatlook.usgs.gov/arcgis/rest/services/LandsatLook/ImageServer/query?where=(acquisitionDate%20>%3D%20date%27{5}%27%20AND%20%20acquisitionDate%20<%3D%20date%27{6}%27)+AND+%28cloudCover+<%3D+{4}%29&objectIds=&time=&geometry=%7B%22xmin%22%3A{0}%2C%22ymin%22%3A{1}%2C%22xmax%22%3A{2}%2C%22ymax%22%3A{3}%2C%22spatialReference%22%3A%7B%22wkid%22%3A102100%7D%7D&geometryType=esriGeometryEnvelope&inSR=102100&spatialRel=esriSpatialRelIntersects&relationParam=&outFields=sceneID%2Csensor%2CacquisitionDate%2CdateUpdated%2Cpath%2Crow%2CPR%2CcloudCover%2CsunElevation%2CsunAzimuth%2CreceivingStation%2CsceneStartTime%2Cmonth%2Cyear%2COBJECTID%2CdayOfYear%2CdayOrNight%2CbrowseURL&returnGeometry=true&outSR=102100&returnIdsOnly=false&returnCountOnly=false&pixelSize=&orderByFields=year%2CdayOfYear&groupByFieldsForStatistics=&outStatistics=&f=json'
+    else:
+        u = 'http://landsatlook.usgs.gov/arcgis/rest/services/LandsatLook/ImageServer/query?where=(acquisitionDate%20>%3D%20date%27{5}%27%20AND%20(sensor+%3D+%27TM%27+OR+sensor+%3D+%27ETM%27+OR+sensor+%3D+%27LANDSAT_ETM%27+OR+sensor+%3D+%27OLI%27)%20AND%20%20acquisitionDate%20<%3D%20date%27{6}%27)+AND+%28cloudCover+<%3D+{4}%29&objectIds=&time=&geometry=%7B%22xmin%22%3A{0}%2C%22ymin%22%3A{1}%2C%22xmax%22%3A{2}%2C%22ymax%22%3A{3}%2C%22spatialReference%22%3A%7B%22wkid%22%3A102100%7D%7D&geometryType=esriGeometryEnvelope&inSR=102100&spatialRel=esriSpatialRelIntersects&relationParam=&outFields=sceneID%2Csensor%2CacquisitionDate%2CdateUpdated%2Cpath%2Crow%2CPR%2CcloudCover%2CsunElevation%2CsunAzimuth%2CreceivingStation%2CsceneStartTime%2Cmonth%2Cyear%2COBJECTID%2CdayOfYear%2CdayOrNight%2CbrowseURL&returnGeometry=true&outSR=102100&returnIdsOnly=false&returnCountOnly=false&pixelSize=&orderByFields=year%2CdayOfYear&groupByFieldsForStatistics=&outStatistics=&f=json'
+    
     xmin = extent[0]
     ymin = extent[1]
     xmax = extent[2]
@@ -41,14 +46,19 @@ def download_tile_image(tile, extent, resolution = 15, path_prefix = ''):
     scene_id = tile['attributes']['sceneID']
     year = tile['attributes']['year']
     month = tile['attributes']['month']
-    day = tile['attributes']['dayOfYear']
+    dayOfYear = tile['attributes']['dayOfYear']
+
+    # d.year, d.month, d.day, d.hour, d.minute
+    d = datetime.datetime.fromtimestamp(tile['attributes']['sceneStartTime']/1000.0)
+   
     cloud_cover = tile['attributes']['cloudCover']
     row = tile['attributes']['row']
     path = tile['attributes']['path']
+    sensor = tile['attributes']['sensor']
     u = 'http://landsatlook.usgs.gov/arcgis/rest/services/LandsatLook/ImageServer/exportImage?f=image&format=jpgpng&bbox={0}%2C{1}%2C{2}%2C{3}&imageSR=102100&bboxSR=102100&size={4}%2C{5}&renderingRule=%7B%22rasterFunction%22%3A%22Stretch%22%2C%22rasterFunctionArguments%22%3A%7B%22StretchType%22%3A0%7D%2C%22variableName%22%3A%22Raster%22%7D&mosaicRule=%7B%22mosaicMethod%22%3A%22esriMosaicLockRaster%22%2C%22ascending%22%3Atrue%2C%22lockRasterIds%22%3A%5B{6}%5D%2C%22mosaicOperation%22%3A%22MT_FIRST%22%7D'
     u = u.format(xmin, ymin, xmax, ymax, w, h, rasterid)
     r = requests.post(u)
-    name = path_prefix + 'landsat_' + str(year) + '_' + '{:04d}'.format(day) + '_' + '{:03d}'.format(cloud_cover) + '_row{:04d}'.format(row) + '_path{:04d}'.format(path)
+    name = path_prefix + 'landsat_' + str(year) + '-{:02d}-{:02d}_{:02d}'.format(d.month, d.day, d.hour) + '_{:03d}'.format(cloud_cover) + '_r{:03d}'.format(row) + '_p{:03d}'.format(path) + '_' + sensor
     with open(name + '.json', 'w') as text_file:
         text_file.write(str(tile['attributes']))
     with open(name + '.jpw', 'w') as text_file:
